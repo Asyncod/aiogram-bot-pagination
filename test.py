@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from aiogram.utils.exceptions import MessageNotModified
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram import Bot, Dispatcher, types, executor
 from telegram_bot_pagination import InlineKeyboardPaginator
@@ -9,8 +10,7 @@ import config
 bot = Bot(config.bot_token, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# Данные, которые вы будете отображать на страницах
-# Количество страниц будет равно длине массива, подтягивать можно из БД
+## All data for page in pagin
 employer_data = ["Страница 1\n\nТекст текст текст текст текст текст текст",
                    "Страница 2\n\nТекст текст текст текст текст текст текст",
                    "Страница 3\n\nТекст текст текст текст текст текст текст",
@@ -19,6 +19,7 @@ employer_data = ["Страница 1\n\nТекст текст текст тек�
                    "Страница 6\n\nТекст текст текст текст текст текст текст"]
 
 
+## Starting pagin
 @dp.message_handler(commands=["start"])
 async def get_character(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -31,11 +32,15 @@ async def get_character(message: types.Message):
                            reply_markup=keyboard)
 
 
-## Основная логика пагинации, сами поймете
+## Main Logic one
 @dp.callback_query_handler(lambda query: query.data.split("#")[0]=="solana")
 async def characters_page_callback(query: types.CallbackQuery):
-    page = int(query.data.split('#')[1])
-    await send_character_page(query.message, page)
+    page = int(query.data.split("#")[1])
+    try:
+        await send_character_page(query.message, page)
+    except MessageNotModified:
+        await bot.answer_callback_query(callback_query_id=query.id, text="Вы уже находитесь на этой странице",
+                                        show_alert=True)
 
 
 async def send_character_page(message, page):
@@ -56,19 +61,21 @@ async def send_character_page(message, page):
     )
 
 
-## Углубление в пагинацию, стоит добавить кнопку "Назад"
+## Main Logic two
 @dp.callback_query_handler(lambda query: query.data.split("#")[0]=="work")
 async def inliner(query: types.CallbackQuery):
-    employer_id = int(query.data.split('#')[1])
-    await send_employer_id(query.message, employer_id)
+    employer_id = int(query.data.split("#")[1])
 
+    keyboard = types.InlineKeyboardMarkup()
+    but1 = types.InlineKeyboardButton(text="Назад", callback_data=f"solana#{employer_id}")
+    keyboard.add(but1)
 
-async def send_employer_id(message, employer_id):
     await bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=message.message_id,
-        text=employer_data[employer_id-1], # Этот текст должен браться уже из другого массива, поставлено как пример
-        parse_mode="HTML"
+        chat_id=query.message.chat.id,
+        message_id=query.message.message_id,
+        text=employer_data[employer_id-1],
+        parse_mode="HTML",
+        reply_markup=keyboard
     )
 
 
@@ -77,6 +84,3 @@ async def send_employer_id(message, employer_id):
 if __name__ == '__main__':
     print("Bot work")
     executor.start_polling(dp)
-
-
-# Считай что форк https://github.com/ksinn/python-telegram-bot-pagination
